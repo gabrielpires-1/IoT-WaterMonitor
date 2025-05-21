@@ -1,0 +1,267 @@
+[
+    {
+        "id": "ca68f008ec69d91f",
+        "type": "tab",
+        "label": "IoT Water Monitor",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "b7a72aa62652a2cb",
+        "type": "aedes broker",
+        "z": "ca68f008ec69d91f",
+        "name": "MQTT Broker",
+        "mqtt_port": 1883,
+        "mqtt_ws_bind": "port",
+        "mqtt_ws_port": "",
+        "mqtt_ws_path": "",
+        "cert": "",
+        "key": "",
+        "certname": "",
+        "keyname": "",
+        "persistence_bind": "memory",
+        "dburl": "",
+        "usetls": false,
+        "x": 130,
+        "y": 400,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "cdaaa7d4a096ec7f",
+        "type": "mqtt in",
+        "z": "ca68f008ec69d91f",
+        "name": "",
+        "topic": "sensors/flow/rate",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "74742f3702680350",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 140,
+        "y": 320,
+        "wires": [
+            [
+                "49f0fe0d8de4166e"
+            ]
+        ]
+    },
+    {
+        "id": "49f0fe0d8de4166e",
+        "type": "function",
+        "z": "ca68f008ec69d91f",
+        "name": "Proccess data",
+        "func": "// Node name: Anomaly Detection\nconst value = msg.payload;\n\n// Convert to number if needed\nconst currentFlow = Number(value);\n\n// Check for anomaly (flow > 100)\nlet anomalyDetected = false;\nlet anomalyMessage = \"\";\n\nif (currentFlow > 100) {\n    anomalyDetected = true;\n    anomalyMessage = \"ALERT: Abnormally high flow rate detected: \" + currentFlow + \" ml/s\";\n}\n\n// Prepare output \nmsg.flowRate = currentFlow;\nmsg.payload = currentFlow;\nmsg.anomaly = anomalyDetected ? \"high_flow\" : \"normal\";\nmsg.anomalyMessage = anomalyMessage;\n\n// Add simple statistics\nconst flowContext = flow.get('flowStats') || { maxFlow: 0 };\nflowContext.maxFlow = Math.max(flowContext.maxFlow, currentFlow);\nflow.set('flowStats', flowContext);\nmsg.statistics = { maxFlow: flowContext.maxFlow };\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 320,
+        "wires": [
+            [
+                "6a50f16e602de9e5"
+            ]
+        ]
+    },
+    {
+        "id": "5325d61929174ea8",
+        "type": "http request",
+        "z": "ca68f008ec69d91f",
+        "name": "HTTP Request to Resend",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "https://api.resend.com/emails",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [
+            {
+                "keyType": "Content-Type",
+                "keyValue": "",
+                "valueType": "other",
+                "valueValue": "application/json"
+            },
+            {
+                "keyType": "Authorization",
+                "keyValue": "",
+                "valueType": "other",
+                "valueValue": "Bearer your_resend_api_key"
+            }
+        ],
+        "x": 1310,
+        "y": 260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "6a50f16e602de9e5",
+        "type": "switch",
+        "z": "ca68f008ec69d91f",
+        "name": "Anomaly Router",
+        "property": "anomaly",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "high_flow",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "normal",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 580,
+        "y": 320,
+        "wires": [
+            [
+                "8f8931e50debbc54"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "1ce7dea5a6e5c45b",
+        "type": "function",
+        "z": "ca68f008ec69d91f",
+        "name": "Prepare email for resend",
+        "func": "// Nome: Prepare Resend Email\n\n// Criar o corpo do email como payload\nconst emailBody = {\n    \"from\": \"Flow Alerts <onboarding@resend.dev>\", // Use o endereço de onboarding ou seu domínio verificado\n    \"to\": \"example@example.com\", // Email que receberá os alertas\n    \"subject\": `Water Flow Alert: ${msg.flowRate} ml/s`,\n    \"html\": `\n        <div style=\"font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 5px;\">\n            <h2 style=\"color: #d9534f;\">Flow Rate Anomaly Detected</h2>\n            \n            <p>A high water flow rate has been detected in your system:</p>\n            \n            <div style=\"background-color: #f8f8f8; padding: 15px; border-radius: 4px; margin: 15px 0;\">\n                <p><strong>Current Flow Rate:</strong> ${msg.flowRate} ml/s</p>\n                <p><strong>Threshold:</strong> 100 ml/s</p>\n                <p><strong>Max Flow Recorded:</strong> ${msg.statistics.maxFlow} ml/s</p>\n                <p><strong>Detection Time:</strong> ${new Date().toLocaleString()}</p>\n            </div>\n            \n            <p>This may indicate a leak, burst pipe, or unusually high usage. Please check your water system.</p>\n            \n            <p style=\"font-size: 0.8em; color: #777; margin-top: 30px;\">\n                This is an automated alert from your water monitoring system.\n            </p>\n        </div>\n    `\n};\n\n// Configurar o payload, URL e método\nmsg.payload = JSON.stringify(emailBody); // Converter para string JSON\n\n// Não precisamos definir os headers no código porque vamos adicioná-los manualmente na interface\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1030,
+        "y": 260,
+        "wires": [
+            [
+                "5325d61929174ea8",
+                "df1adb2322897bb3"
+            ]
+        ]
+    },
+    {
+        "id": "df1adb2322897bb3",
+        "type": "debug",
+        "z": "ca68f008ec69d91f",
+        "name": "debug email body",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1290,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "8f8931e50debbc54",
+        "type": "function",
+        "z": "ca68f008ec69d91f",
+        "name": "Rate Limit Control",
+        "func": "// Nome: Rate Limit Control\n// Permite apenas uma mensagem a cada 5 minutos\n\n// Obter o timestamp da última mensagem enviada\nconst lastSent = context.get('lastSent') || 0;\nconst now = Date.now();\n\n// Intervalo de 5 minutos em milissegundos\nconst interval = 5 * 60 * 1000;\n\n// Verificar se já passou o tempo necessário\nif (now - lastSent >= interval) {\n    // Armazenar o timestamp atual\n    context.set('lastSent', now);\n\n    // Passar a mensagem\n    return msg;\n} else {\n    // Registrar no debug que a mensagem foi bloqueada\n    node.status({ fill: \"yellow\", shape: \"ring\", text: \"Blocked: \" + Math.round((interval - (now - lastSent)) / 1000) + \"s remaining\" });\n\n    // Bloquear a mensagem\n    return null;\n}",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 790,
+        "y": 260,
+        "wires": [
+            [
+                "1ce7dea5a6e5c45b"
+            ]
+        ]
+    },
+    {
+        "id": "76b293a2d92bd602",
+        "type": "mqtt in",
+        "z": "ca68f008ec69d91f",
+        "name": "",
+        "topic": "sensors/flow/volume",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "74742f3702680350",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 260,
+        "wires": [
+            [
+                "65bfff25e59c5c2f"
+            ]
+        ]
+    },
+    {
+        "id": "65bfff25e59c5c2f",
+        "type": "debug",
+        "z": "ca68f008ec69d91f",
+        "name": "debug volume",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 360,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "74742f3702680350",
+        "type": "mqtt-broker",
+        "name": "MQTT Broker Iot Water Monitor",
+        "broker": "localhost",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    }
+]
