@@ -3,11 +3,11 @@
 #include <PubSubClient.h>
 
 // Configurações de WiFi
-const char *WIFI_SSID = "YOUR_WIFI_SSID";
-const char *WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char *WIFI_SSID = "WIFI";
+const char *WIFI_PASSWORD = "PASSWORD#";
 
 // Configurações de MQTT
-const char *MQTT_BROKER = "192.168.1.101"; // IP do seu notebook
+const char *MQTT_BROKER = "192.168.1.100"; // IP do seu notebook
 const int MQTT_PORT = 1883;
 const char *MQTT_CLIENT_ID = "ESP8266_FlowSensor";
 const char *MQTT_TOPIC_FLOW = "sensors/flow/volume";
@@ -105,42 +105,63 @@ void loop()
   {
     reconnectMQTT();
   }
-  mqttClient.loop();
+  // DENTRO DA SUA FUNÇÃO loop()
+  // ... (código anterior do loop) ...
+  mqttClient.loop(); // Certifique-se que está aqui
 
   unsigned long tempoAtual = millis();
 
-  // Calcula a vazão a cada 1/4 de segundo
   if (tempoAtual - tempoUltimaVazao >= INTERVALO_MEDICAO)
   {
-    noInterrupts();
+    int pulsosNesteIntervalo; // Variável local para guardar os pulsos
 
-    // Calcula vazão
-    calculoVazao = (contador * 2.25 * (1000.0 / INTERVALO_MEDICAO));
+    noInterrupts();                  // Desabilita interrupções brevemente
+    pulsosNesteIntervalo = contador; // Copia o contador
+    contador = 0;                    // Zera o contador para o próximo intervalo
+    interrupts();                    // Reabilita interrupções IMEDIATAMENTE
 
-    // Adiciona o volume do último intervalo ao total
-    double volumeIntervalo = calculoVazao * (INTERVALO_MEDICAO / 1000.0);
+    tempoUltimaVazao = tempoAtual; // Atualiza o tempo da última medição
+
+    // Agora, faça os cálculos e a comunicação MQTT com 'pulsosNesteIntervalo'
+    // As interrupções já estão habilitadas aqui.
+
+    calculoVazao = (pulsosNesteIntervalo * 2.25 * (1000.0 / INTERVALO_MEDICAO));
+    double volumeIntervalo = pulsosNesteIntervalo * 2.25; // ml por pulso * pulsos
     volumeTotal += volumeIntervalo;
 
-    // Prepara strings para publicação MQTT
     char vazaoStr[10];
     char volumeStr[10];
     dtostrf(calculoVazao, 4, 2, vazaoStr);
     dtostrf(volumeTotal, 4, 2, volumeStr);
 
-    // Publica dados no MQTT
-    mqttClient.publish(MQTT_TOPIC_VAZAO, vazaoStr);
-    mqttClient.publish(MQTT_TOPIC_FLOW, volumeStr);
+    // Verifique a conexão MQTT antes de publicar
+    if (!mqttClient.connected())
+    {
+      Serial.println("MQTT desconectado, tentando reconectar antes de publicar...");
+      reconnectMQTT(); // Tenta reconectar
+    }
 
-    // Log no Serial
+    // Só publica se estiver conectado
+    if (mqttClient.connected())
+    {
+      bool pubVazao = mqttClient.publish(MQTT_TOPIC_VAZAO, vazaoStr);
+      bool pubFlow = mqttClient.publish(MQTT_TOPIC_FLOW, volumeStr);
+      if (!pubVazao || !pubFlow)
+      {
+        Serial.println("Falha ao publicar no MQTT.");
+      }
+    }
+    else
+    {
+      Serial.println("MQTT ainda desconectado, publicação falhou.");
+    }
+
     Serial.print("Vazão: ");
     Serial.print(calculoVazao);
     Serial.print(" ml/s | Volume Total: ");
     Serial.print(volumeTotal);
     Serial.println(" ml");
-
-    contador = 0;
-    tempoUltimaVazao = tempoAtual;
-
-    interrupts();
   }
-}
+  // Adicione yield() para ajudar o watchdog
+  yield(); // ou delay(0); ou delay(1);
+} // Fim da função loop()
