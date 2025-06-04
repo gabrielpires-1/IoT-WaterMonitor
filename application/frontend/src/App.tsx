@@ -8,7 +8,7 @@ import { Droplets, DollarSign, TrendingUp, Calendar } from "lucide-react"
 type TotalResponse = {
   period: string
   total_value_float: number
-  total_value_money: string
+  total_value_money: number
 }
 
 type PeriodResponse = {
@@ -201,6 +201,16 @@ function App() {
     })
   }
 
+  const formatMoney = (value: number) => {
+    return value.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -258,7 +268,11 @@ function App() {
             <CardContent>
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-2xl font-bold">{moneyTotal?.total_value_money}</div>
+                  <div className="text-2xl font-bold">
+                    {moneyTotal
+                      ? formatMoney(moneyTotal.total_value_money)
+                      : "R$ 0,00"}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Período: {PERIODS.find((p) => p.value === moneyPeriod)?.label}
                   </p>

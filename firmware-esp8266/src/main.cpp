@@ -3,25 +3,23 @@
 #include <PubSubClient.h>
 
 // Configurações de WiFi
-const char *WIFI_SSID = "WIFI";
-const char *WIFI_PASSWORD = "PASSWORD#";
+const char *WIFI_SSID = "VIRUS_ATTACK";
+const char *WIFI_PASSWORD = "99954888#";
 
 // Configurações de MQTT
 const char *MQTT_BROKER = "192.168.1.100"; // IP do seu notebook
 const int MQTT_PORT = 1883;
 const char *MQTT_CLIENT_ID = "ESP8266_FlowSensor";
-const char *MQTT_TOPIC_FLOW = "sensors/flow/volume";
-const char *MQTT_TOPIC_VAZAO = "sensors/flow/rate";
+const char *MQTT_TOPIC_VOLUME_PERIODO = "sensors/flow/volume_received"; // Volume do período
+const char *MQTT_TOPIC_VOLUME_TOTAL = "sensors/flow/volume_total";      // Volume total acumulado
 
 // Constantes e variáveis do sensor
-double calculoVazao;
 volatile int contador = 0;
-int ultimoContador = 0;
 double volumeTotal = 0;
-unsigned long tempoUltimaImpressao = 0;
 unsigned long tempoUltimaVazao = 0;
-const int INTERVALO_MEDICAO = 250;
+const int INTERVALO_MEDICAO = 250; // 250ms
 const int PIN_SENSOR = 2;
+const double ML_POR_PULSO = 2.25; // ml por pulso do sensor
 
 // Objetos WiFi e MQTT
 WiFiClient espClient;
@@ -86,8 +84,7 @@ void setup()
   pinMode(PIN_SENSOR, INPUT);
   attachInterrupt(digitalPinToInterrupt(PIN_SENSOR), Vazao, FALLING);
 
-  // Inicializa os contadores de tempo
-  tempoUltimaImpressao = millis();
+  // Inicializa o tempo
   tempoUltimaVazao = millis();
 
   Serial.println("Setup concluído. Aguardando pulsos do sensor...");
@@ -105,63 +102,77 @@ void loop()
   {
     reconnectMQTT();
   }
-  // DENTRO DA SUA FUNÇÃO loop()
-  // ... (código anterior do loop) ...
-  mqttClient.loop(); // Certifique-se que está aqui
+
+  mqttClient.loop(); // Manter a conexão MQTT ativa
 
   unsigned long tempoAtual = millis();
 
+  // Verifica se passou o intervalo de medição (250ms)
   if (tempoAtual - tempoUltimaVazao >= INTERVALO_MEDICAO)
   {
-    int pulsosNesteIntervalo; // Variável local para guardar os pulsos
+    int pulsosNesteIntervalo;
 
-    noInterrupts();                  // Desabilita interrupções brevemente
-    pulsosNesteIntervalo = contador; // Copia o contador
-    contador = 0;                    // Zera o contador para o próximo intervalo
-    interrupts();                    // Reabilita interrupções IMEDIATAMENTE
+    // Captura os pulsos de forma segura
+    noInterrupts();
+    pulsosNesteIntervalo = contador;
+    contador = 0; // Zera para o próximo período
+    interrupts();
 
-    tempoUltimaVazao = tempoAtual; // Atualiza o tempo da última medição
+    // Calcula o volume que passou neste período de 250ms
+    double volumePeriodo = pulsosNesteIntervalo * ML_POR_PULSO;
 
-    // Agora, faça os cálculos e a comunicação MQTT com 'pulsosNesteIntervalo'
-    // As interrupções já estão habilitadas aqui.
+    // Atualiza o volume total acumulado
+    volumeTotal += volumePeriodo;
 
-    calculoVazao = (pulsosNesteIntervalo * 2.25 * (1000.0 / INTERVALO_MEDICAO));
-    double volumeIntervalo = pulsosNesteIntervalo * 2.25; // ml por pulso * pulsos
-    volumeTotal += volumeIntervalo;
+    // Atualiza o tempo da última medição
+    tempoUltimaVazao = tempoAtual;
 
-    char vazaoStr[10];
-    char volumeStr[10];
-    dtostrf(calculoVazao, 4, 2, vazaoStr);
-    dtostrf(volumeTotal, 4, 2, volumeStr);
+    // Converte para strings para envio MQTT
+    char volumePeriodoStr[10];
+    char volumeTotalStr[10];
+    dtostrf(volumePeriodo, 4, 2, volumePeriodoStr);
+    dtostrf(volumeTotal, 4, 2, volumeTotalStr);
 
-    // Verifique a conexão MQTT antes de publicar
+    // Verifica conexão MQTT antes de publicar
     if (!mqttClient.connected())
     {
-      Serial.println("MQTT desconectado, tentando reconectar antes de publicar...");
-      reconnectMQTT(); // Tenta reconectar
+      Serial.println("MQTT desconectado, tentando reconectar...");
+      reconnectMQTT();
     }
 
-    // Só publica se estiver conectado
+    // Publica os dados se conectado
     if (mqttClient.connected())
     {
-      bool pubVazao = mqttClient.publish(MQTT_TOPIC_VAZAO, vazaoStr);
-      bool pubFlow = mqttClient.publish(MQTT_TOPIC_FLOW, volumeStr);
-      if (!pubVazao || !pubFlow)
+      bool pubVolumePeriodo = mqttClient.publish(MQTT_TOPIC_VOLUME_PERIODO, volumePeriodoStr);
+      bool pubVolumeTotal = mqttClient.publish(MQTT_TOPIC_VOLUME_TOTAL, volumeTotalStr);
+
+      if (!pubVolumePeriodo || !pubVolumeTotal)
       {
         Serial.println("Falha ao publicar no MQTT.");
+      }
+      else
+      {
+        Serial.print("Publicado - Volume Período: ");
+        Serial.print(volumePeriodo);
+        Serial.print(" ml | Volume Total: ");
+        Serial.print(volumeTotal);
+        Serial.println(" ml");
       }
     }
     else
     {
-      Serial.println("MQTT ainda desconectado, publicação falhou.");
+      Serial.println("MQTT desconectado, publicação falhou.");
     }
 
-    Serial.print("Vazão: ");
-    Serial.print(calculoVazao);
-    Serial.print(" ml/s | Volume Total: ");
+    // Debug no Serial Monitor
+    Serial.print("Pulsos no período: ");
+    Serial.print(pulsosNesteIntervalo);
+    Serial.print(" | Volume adicionado: ");
+    Serial.print(volumePeriodo);
+    Serial.print(" ml | Volume Total: ");
     Serial.print(volumeTotal);
     Serial.println(" ml");
   }
-  // Adicione yield() para ajudar o watchdog
-  yield(); // ou delay(0); ou delay(1);
-} // Fim da função loop()
+
+  yield(); // Evita problemas com o watchdog
+}
