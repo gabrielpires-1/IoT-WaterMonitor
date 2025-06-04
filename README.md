@@ -25,6 +25,11 @@ instalar dependencias:
   go mod tidy
 ```
 
+execute as migrations
+```bash
+ tern migrate --migrations ./db/migrations
+```
+
 Como rodar o Frontend React:
 Instale as dependencias
 ```bash
