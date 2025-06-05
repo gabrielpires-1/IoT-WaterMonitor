@@ -2,6 +2,12 @@
 
 Sistema completo de monitoramento de consumo de água em tempo real utilizando ESP8266, sensor de vazão YF-S201, Node-RED, backend em Go e frontend React. O sistema detecta vazamentos automaticamente e envia alertas por email.
 
+## **Autores:**
+
+- Gabriel Pires(gpac@cesar.school)
+- Luis Mingati (locm@cesar.school)
+- João Ventura (jvpv@cesar.school)
+
 ## 📋 Descrição do Projeto
 
 O IoT-WaterMonitor é uma solução IoT para monitoramento inteligente do consumo de água que integra:
