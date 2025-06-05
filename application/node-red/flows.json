@@ -35,7 +35,7 @@
         "type": "mqtt in",
         "z": "ca68f008ec69d91f",
         "name": "",
-        "topic": "sensors/flow/rate",
+        "topic": "sensors/flow/volume_received",
         "qos": "2",
         "datatype": "auto-detect",
         "broker": "74742f3702680350",
@@ -43,11 +43,12 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 140,
+        "x": 180,
         "y": 320,
         "wires": [
             [
-                "49f0fe0d8de4166e"
+                "49f0fe0d8de4166e",
+                "cc0b6a2185fc8427"
             ]
         ]
     },
@@ -100,8 +101,8 @@
                 "valueValue": "Bearer re_DJrBXMrk_7ZE19PCiszgD6hnnp6swYzTu"
             }
         ],
-        "x": 1310,
-        "y": 260,
+        "x": 1290,
+        "y": 280,
         "wires": [
             []
         ]
@@ -128,8 +129,8 @@
         "checkall": "true",
         "repair": false,
         "outputs": 2,
-        "x": 580,
-        "y": 320,
+        "x": 600,
+        "y": 360,
         "wires": [
             [
                 "8f8931e50debbc54"
@@ -150,7 +151,7 @@
         "finalize": "",
         "libs": [],
         "x": 1030,
-        "y": 260,
+        "y": 280,
         "wires": [
             [
                 "5325d61929174ea8",
@@ -188,32 +189,10 @@
         "finalize": "",
         "libs": [],
         "x": 790,
-        "y": 260,
+        "y": 320,
         "wires": [
             [
                 "1ce7dea5a6e5c45b"
-            ]
-        ]
-    },
-    {
-        "id": "76b293a2d92bd602",
-        "type": "mqtt in",
-        "z": "ca68f008ec69d91f",
-        "name": "",
-        "topic": "sensors/flow/volume",
-        "qos": "2",
-        "datatype": "auto-detect",
-        "broker": "74742f3702680350",
-        "nl": false,
-        "rap": true,
-        "rh": 0,
-        "inputs": 0,
-        "x": 150,
-        "y": 260,
-        "wires": [
-            [
-                "65bfff25e59c5c2f",
-                "cca099ad172d4ae6"
             ]
         ]
     },
@@ -230,15 +209,15 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 460,
-        "y": 260,
+        "x": 640,
+        "y": 520,
         "wires": []
     },
     {
         "id": "63f4547411f1f9fb",
         "type": "http request",
         "z": "ca68f008ec69d91f",
-        "name": "",
+        "name": "Requisição HTTP - Back-end em Golang",
         "method": "POST",
         "ret": "txt",
         "paytoqs": "ignore",
@@ -250,31 +229,70 @@
         "authType": "",
         "senderr": false,
         "headers": [],
-        "x": 640,
-        "y": 140,
+        "x": 720,
+        "y": 460,
         "wires": [
             []
         ]
     },
     {
-        "id": "cca099ad172d4ae6",
+        "id": "cc0b6a2185fc8427",
         "type": "function",
         "z": "ca68f008ec69d91f",
         "name": "Proccess data",
-        "func": "// Recebe o valor numérico do msg.payload\nlet numero = msg.payload;\n\n// Converte o número para float e depois para string\n// Se o número já for float, parseFloat não altera, apenas garante.\n// Se for um inteiro como 189, será \"189\" ou \"189.0\" dependendo da formatação desejada.\n// Para garantir que tenha uma casa decimal, por exemplo:\n// let numeroString = parseFloat(numero).toFixed(1); // Ex: \"189.0\"\n// Ou simplesmente como string:\nlet numeroString = String(parseFloat(numero)); // Ex: \"189\"\n\n// Monta o objeto JSON no formato desejado\nmsg.payload = {\n    \"value\": numeroString\n};\n\n// Define o header Content-Type para a requisição HTTP\n// O nó http request geralmente faz isso automaticamente se msg.payload é um objeto,\n// mas é uma boa prática definir explicitamente se necessário.\nmsg.headers = {\n    'Content-Type': 'application/json'\n};\n\nreturn msg;",
+        "func": "let numero = msg.payload;\n\nlet numeroString = String(parseFloat(numero));\n\nmsg.payload = {\n    \"value\": numeroString\n};\n\nmsg.headers = {\n    'Content-Type': 'application/json'\n};\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 360,
-        "y": 140,
+        "x": 400,
+        "y": 460,
         "wires": [
             [
-                "63f4547411f1f9fb"
+                "63f4547411f1f9fb",
+                "65bfff25e59c5c2f"
             ]
         ]
+    },
+    {
+        "id": "76b293a2d92bd602",
+        "type": "mqtt in",
+        "z": "ca68f008ec69d91f",
+        "name": "",
+        "topic": "sensors/flow/volume_total",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "74742f3702680350",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 170,
+        "y": 260,
+        "wires": [
+            [
+                "c7211d07cf02252e"
+            ]
+        ]
+    },
+    {
+        "id": "c7211d07cf02252e",
+        "type": "debug",
+        "z": "ca68f008ec69d91f",
+        "name": "debug volume",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 420,
+        "y": 260,
+        "wires": []
     },
     {
         "id": "74742f3702680350",
