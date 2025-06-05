@@ -3,8 +3,8 @@
 #include <PubSubClient.h>
 
 // Configurações de WiFi
-const char *WIFI_SSID = "VIRUS_ATTACK";
-const char *WIFI_PASSWORD = "99954888#";
+const char *WIFI_SSID = "Seu Wifi";
+const char *WIFI_PASSWORD = "Sua Senha";
 
 // Configurações de MQTT
 const char *MQTT_BROKER = "192.168.1.100"; // IP do seu notebook
